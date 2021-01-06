@@ -76,7 +76,7 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) 
 {
 	char buff[BUFF_SIZE], str[MAX_STR],mod[6];
-	int ret,i,broj,j;
+	int ret,i,broj;
 
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
@@ -179,6 +179,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		ret = 1;
 	if (ret == 1)
 	{
+		char* poc = strstr(stred,str);
 		if (length>strlen(stred))
 		{
 			printk(KERN_INFO "Izraz za brisanje veci je od bafera");
@@ -186,10 +187,15 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		}
 		for(i=0;i<length-7;i++)
 			str[i]=buff[i+7]; //u str je ono za izbacivanje
-		while(strstr(stred,str)!=NULL)
+		if (poc==NULL)
 		{
-			char* poc=strstr(stred,str); //pokazivac na gde se nalazi ono za izbacivanje
-			strcpy(memmove(poc,poc+strlen(str),strlen(stred)-strlen(str)-(poc-stred)),stred);
+			printk(KERN_INFO "Niz karaktera \"%s\" ne nalazi se u baferu",str);
+			return -1;
+		}
+		while(poc!=NULL)
+		{
+			poc=strstr(stred,str); //pokazivac na gde se nalazi ono za izbacivanje
+			strcpy(stred,memmove(poc,poc+strlen(str),strlen(stred)-strlen(str)-(poc-stred)));
 		}
 		printk(KERN_INFO "Operacija \"remove\" uspesno izvrsena");
 		return length;
