@@ -62,28 +62,31 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 		printk(KERN_INFO "Uspesno procitano iz fajla\n");
 		return 0;
 	}
-	len = scnprintf(buff,BUFF_SIZE , "%d ", stred[pos]);
+
+	len = scnprintf(buff,BUFF_SIZE , "%c", stred[pos]);
 	ret = copy_to_user(buffer, buff, len);
 	if(ret)
 		return -EFAULT;
 	pos ++;
-	if (pos == 10) {
+	if (pos == strlen(stred)+1) 
+	{
 		endRead = 1;
+		ret = copy_to_user(buffer,"\n",1);
+		if (ret)
+			return -EFAULT;
 	}
 	return len;
 }
 
 ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) 
 {
-	char buff[BUFF_SIZE], str[MAX_STR],mod[6];
+	char buff[BUFF_SIZE], str[MAX_STR];
 	int ret,i,broj;
 
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
 		return -EFAULT;
 	buff[length-1] = '\0';
-
-	memset(mod,0,6); // punimo niz mod sa svim 0 - prazan
 
 	//1. Upis stringa
 	ret = 0;
@@ -107,9 +110,6 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 			return length; 
 	}
 
-	else
-		mod[0] = 1; // 1 znaci Nije izvrsena, bilo da nista nije uneto ili druga kom.
-
 
 	//2. Brisanje stringa
 	ret = 1;
@@ -120,8 +120,6 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		printk(KERN_INFO "String uspesno obrisan");
 		return length;
 	}
-	else
-		mod[1] = 1;
 
 	//3. Brisanje space-ova iz stringa
 	ret = 1;
@@ -132,8 +130,6 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		printk(KERN_INFO "Operacija \"shrink\" uspesno izvrsena");
 		return length;
 	}
-	else 
-		mod[2] = 1;
 
 	//4. Dodavanje stringa na postojeci
 	ret = 0;
@@ -152,8 +148,6 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		printk(KERN_INFO "Operacija \"append\" uspesno izvrsena");
 		return length;
 	}
-	else
-		mod[3]=1;
 
 	//5. Brisanje broja karaktera sa kraja bafera
 	ret = 0;
@@ -169,8 +163,6 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		printk(KERN_INFO "Operacija \"truncate\" uspesno izvrsena");
 		return length;
 	}
-	else
-		mod[4]=1; //ne treba mi ovo
 
 	//6. Brisanje pojave niza kar. iz bafera
 
@@ -202,6 +194,9 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		printk(KERN_INFO "Operacija \"remove\" uspesno izvrsena");
 		return length;
 	}
+
+	// Nepravilan unos
+
 	printk(KERN_INFO "Nepostojuca komanda.");
 	return -1;
 }
