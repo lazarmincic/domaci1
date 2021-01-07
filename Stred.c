@@ -21,7 +21,7 @@ static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
 
-DECLARE_WAIT_QUEUE_HEAD(readQ);
+//DECLARE_WAIT_QUEUE_HEAD(readQ);
 DECLARE_WAIT_QUEUE_HEAD(writeQ);
 struct semaphore sem;
 
@@ -113,6 +113,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 			strcpy(stred,str); //upis
 			printk(KERN_INFO "String \"%s\" uspesno upisan\n", str);
 		//	printk(KERN_INFO "%s",stred );
+			wake_up_interruptible(&writeQ);
 			return length; 
 	}
 
@@ -124,6 +125,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	{
 		memset(stred,0,MAX_STR);
 		printk(KERN_INFO "String uspesno obrisan");
+		wake_up_interruptible(&writeQ);
 		return length;
 	}
 
@@ -134,6 +136,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	{
 		strcpy(stred,strim(stred));
 		printk(KERN_INFO "Operacija \"shrink\" uspesno izvrsena");
+		wake_up_interruptible(&writeQ);
 		return length;
 	}
 
@@ -145,8 +148,9 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	{
 		if (strlen(stred) + length-7 > MAX_STR ) 
 		{
-			printk(KERN_INFO "Malo sutra ces upisati sve to!");
-			return -1;
+			//printk(KERN_INFO "Malo sutra ces upisati sve to!");
+			if (wait_event_interruptible(writeQ,(strlen(stred)+length-7<=MAX_STR)))
+				return -ERESTARTSYS;
 		}
 		for (i=0;i<length-7;i++) 
 			str[0+i]= buff[7+i];
@@ -167,6 +171,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		}
 		memzero_explicit(&stred[strlen(stred)-broj],broj);
 		printk(KERN_INFO "Operacija \"truncate\" uspesno izvrsena");
+		wake_up_interruptible(&writeQ);
 		return length;
 	}
 
@@ -198,6 +203,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 				memmove(p,p + len,strlen(p+len) + 1);
 		}
 		printk(KERN_INFO "Operacija \"remove\" uspesno izvrsena");
+		wake_up_interruptible(&writeQ);
 		return length;
 	}
 
@@ -212,6 +218,7 @@ static int __init stred_init(void)
    int ret = 0;
 	int i=0;
 
+	sema_init(&sem,1);
 	//Inicijalizacija niza
 	for (i=0; i<MAX_STR; i++)
 		stred[i] = 0;
