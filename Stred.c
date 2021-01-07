@@ -66,9 +66,12 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 		endRead = 0;
 		pos = 0;
 		printk(KERN_INFO "Uspesno procitano iz fajla\n");
+		up(&sem);
 		return 0;
 	}
-
+	if (pos == 0)
+		if (down_interruptible(&sem))
+		return -ERESTARTSYS;
 	len = scnprintf(buff,BUFF_SIZE , "%c", stred[pos]);
 	ret = copy_to_user(buffer, buff, len);
 	if(ret)
@@ -105,6 +108,8 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 				printk(KERN_INFO "Uneti string predugacak!");
 				return -1;
 			}
+			if (down_interruptible(&sem))
+				return -ERESTARTSYS;
 			for(i=0;i<length-7;i++) //treba da u str upisem ono sto se obradjuje
 			{
 				str[0+i]=buff[7+i];
@@ -113,6 +118,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 			strcpy(stred,str); //upis
 			printk(KERN_INFO "String \"%s\" uspesno upisan\n", str);
 		//	printk(KERN_INFO "%s",stred );
+			up(&sem);
 			wake_up_interruptible(&writeQ);
 			return length; 
 	}
@@ -123,8 +129,11 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	ret = strcmp(buff,"clear");
 	if (ret==0)
 	{
+		if (down_interruptible(&sem))
+			return -ERESTARTSYS;
 		memset(stred,0,MAX_STR);
 		printk(KERN_INFO "String uspesno obrisan");
+		up(&sem);
 		wake_up_interruptible(&writeQ);
 		return length;
 	}
@@ -134,8 +143,11 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	ret = strcmp(buff,"shrink");
 	if (ret == 0)
 	{
+		if (down_interruptible(&sem))
+			return -ERESTARTSYS;
 		strcpy(stred,strim(stred));
 		printk(KERN_INFO "Operacija \"shrink\" uspesno izvrsena");
+		up(&sem);
 		wake_up_interruptible(&writeQ);
 		return length;
 	}
@@ -146,16 +158,21 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		ret = 1;
 	if (ret == 1)
 	{
-		if (strlen(stred) + length-7 > MAX_STR ) 
+		if (down_interruptible(&sem))
+			return -ERESTARTSYS;
+		while (strlen(stred)+ length-7 > MAX_STR)
 		{
-			//printk(KERN_INFO "Malo sutra ces upisati sve to!");
+			up(&sem);
 			if (wait_event_interruptible(writeQ,(strlen(stred)+length-7<=MAX_STR)))
+				return -ERESTARTSYS;
+			if (down_interruptible(&sem))
 				return -ERESTARTSYS;
 		}
 		for (i=0;i<length-7;i++) 
 			str[0+i]= buff[7+i];
 		strcpy(stred,strcat(stred,str));
 		printk(KERN_INFO "Operacija \"append\" uspesno izvrsena");
+		up(&sem);
 		return length;
 	}
 
@@ -169,8 +186,11 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 			printk(KERN_INFO "Bafer nije toliko velik");
 			return -1;
 		}
+		if (down_interruptible(&sem))
+			return -ERESTARTSYS;
 		memzero_explicit(&stred[strlen(stred)-broj],broj);
 		printk(KERN_INFO "Operacija \"truncate\" uspesno izvrsena");
+		up(&sem);
 		wake_up_interruptible(&writeQ);
 		return length;
 	}
@@ -188,11 +208,14 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 			printk(KERN_INFO "Izraz za brisanje veci je od bafera");
 			return -1;
 		}
+		if (down_interruptible(&sem))
+			return -ERESTARTSYS;
 		for(i=0;i<length-7;i++)
 			str[i]=buff[i+7]; //u str je ono za izbacivanje
 		if (strstr(stred,str)==NULL)
 		{
 			printk(KERN_INFO "Niz karaktera \"%s\" ne nalazi se u baferu",str);
+			up(&sem);
 			return -1;
 		}
 		len = strlen(str);
@@ -203,6 +226,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 				memmove(p,p + len,strlen(p+len) + 1);
 		}
 		printk(KERN_INFO "Operacija \"remove\" uspesno izvrsena");
+		up(&sem);
 		wake_up_interruptible(&writeQ);
 		return length;
 	}
