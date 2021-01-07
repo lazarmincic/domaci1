@@ -9,8 +9,10 @@
 #include <linux/kdev_t.h>
 #include <linux/uaccess.h>
 #include <linux/errno.h>
+#include <linux/wait.h>
+#include <linux/semaphore.h>
 #define BUFF_SIZE 120
-#define MAX_STR 100
+#define MAX_STR 100+1
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -18,6 +20,10 @@ dev_t my_dev_id;
 static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
+
+DECLARE_WAIT_QUEUE_HEAD(readQ);
+DECLARE_WAIT_QUEUE_HEAD(writeQ);
+struct semaphore sem;
 
 char stred[MAX_STR];
 int pos = 0;
@@ -172,7 +178,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	if (ret == 1)
 	{
 		size_t len;
-		if (length>strlen(stred))
+		if (length-7>strlen(stred))
 		{
 			printk(KERN_INFO "Izraz za brisanje veci je od bafera");
 			return -1;
