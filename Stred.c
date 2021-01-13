@@ -66,11 +66,9 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 		endRead = 0;
 		pos = 0;
 		printk(KERN_INFO "Uspesno procitano iz fajla\n");
-		up(&sem);
 		return 0;
 	}
-	if (pos == 0)
-		if (down_interruptible(&sem))
+	if (down_interruptible(&sem))
 		return -ERESTARTSYS;
 	len = scnprintf(buff,BUFF_SIZE , "%c", stred[pos]);
 	ret = copy_to_user(buffer, buff, len);
@@ -84,6 +82,7 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 		if (ret)
 			return -EFAULT;
 	}
+	up(&sem);
 	return len;
 }
 
@@ -95,7 +94,8 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
 		return -EFAULT;
-	buff[length-1] = '\0';
+	if (buff[length-1]!='\0')
+		buff[length-1] = '\0';
 
 	//1. Upis stringa
 	ret = 0;
@@ -234,6 +234,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	// Nepravilan unos
 
 	printk(KERN_INFO "Nepostojuca komanda.");
+//	printk(KERN_INFO "%s,%d\n",buff,strlen(buff));
 	return -1;
 }
 
